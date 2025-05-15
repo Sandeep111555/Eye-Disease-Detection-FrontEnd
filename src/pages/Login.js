@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import Input from '../components/Input';
+import FormField from '../components/FormField';
+import FormGroup from '../components/FormGroup';
+import FormSection from '../components/FormSection';
+import PasswordInput from '../components/PasswordInput';
 import Button from '../components/Button';
+import Card from '../components/Card';
 import eyeLogo from '../assets/images/eye-logo.png';
 import eyeScan from '../assets/images/eye-scan.jpg';
 import AuthService from '../services/AuthService';
 import { useAlert } from '../contexts/AlertContext';
+import { isValidEmail } from '../utils/ValidationUtils';
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [validationErrors, setValidationErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-  const { error: showError, success } = useAlert();  useEffect(() => {
+  const { error: showError, success, validation } = useAlert();
+  
+  useEffect(() => {
     // Check if there's a registration success message
     if (location.state && location.state.message) {
       // Set the success message in the component state
@@ -49,6 +57,36 @@ const Login = () => {
       checkAuth();
     }
   }, [navigate, location, success]);
+  const validateForm = () => {
+    const errors = {};
+    let isValid = true;
+
+    // Email validation
+    if (!formData.email) {
+      errors.email = 'Email is required';
+      isValid = false;
+    } else if (!isValidEmail(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+      isValid = false;
+    }
+
+    // Password validation
+    if (!formData.password) {
+      errors.password = 'Password is required';
+      isValid = false;
+    } else if (formData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    }
+
+    setValidationErrors(errors);
+    
+    if (!isValid) {
+      validation('Please fix the validation errors to continue');
+    }
+    
+    return isValid;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,8 +94,29 @@ const Login = () => {
       ...formData,
       [name]: value,
     });
-  };  const handleSubmit = (e) => {
+    
+    // Clear specific field error when user starts typing
+    if (validationErrors[name]) {
+      setValidationErrors({
+        ...validationErrors,
+        [name]: ''
+      });
+    }
+    
+    // Clear general error message when user makes changes
+    if (error) {
+      setError('');
+    }
+  };
+  
+  const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate form before submitting
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsLoading(true);
     setError('');
 
@@ -67,8 +126,16 @@ const Login = () => {
         navigate('/dashboard');
       })
       .catch(err => {
-        setError(err.message);
-        showError(err.message);
+        // Save the error in state for in-form display
+        setError(err.message || 'Login failed. Please check your credentials.');
+        // Also display an alert notification for better visibility
+        showError(err.message || 'Login failed. Please check your credentials.');
+        
+        // Reset password field on error for security
+        setFormData({
+          ...formData,
+          password: ''
+        });
       })
       .finally(() => {
         setIsLoading(false);
@@ -104,46 +171,61 @@ const Login = () => {
               {successMessage}
             </div>
           )}
-          
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-            <Input
-              label="Email Address"
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter your email"
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Enter your password"
-              required
-            />
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Remember me
-                </label>
-              </div>
-              
-              <div className="text-sm">
-                <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
-                  Forgot your password?
-                </a>
-              </div>
-            </div>
+            <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+            <Card className="p-6">
+              <FormSection
+                title="Sign In"
+                description="Access your account"
+                borderless
+              >
+                <FormGroup>
+                  <FormField
+                    label="Email Address"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email"
+                    required
+                    error={validationErrors.email}
+                    isValid={!validationErrors.email && formData.email.length > 0}
+                    showValidation={true}
+                    helpText="We'll never share your email"
+                  />
+                  
+                  <PasswordInput
+                    label="Password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Enter your password"
+                    required
+                    error={validationErrors.password}
+                    showStrengthMeter={false}
+                  />
+                  
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="flex items-center">
+                      <input
+                        id="remember-me"
+                        name="remember-me"
+                        type="checkbox"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                        Remember me
+                      </label>
+                    </div>
+                    
+                    <div className="text-sm">
+                      <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+                        Forgot your password?
+                      </a>
+                    </div>
+                  </div>
+                </FormGroup>
+              </FormSection>
+            </Card>
             
             <Button
               type="submit"
@@ -152,7 +234,8 @@ const Login = () => {
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </Button>
-              <div className="text-center mt-4">
+              
+            <div className="text-center mt-4">
               <p className="text-sm text-gray-600">
                 Don't have an account?{' '}
                 <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">

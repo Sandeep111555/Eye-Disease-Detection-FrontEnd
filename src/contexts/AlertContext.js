@@ -8,7 +8,8 @@ export const ALERT_TYPES = {
   SUCCESS: 'success',
   ERROR: 'error',
   WARNING: 'warning',
-  INFO: 'info'
+  INFO: 'info',
+  VALIDATION: 'validation' // Added validation specific alert type
 };
 
 // Alert Provider Component
@@ -67,9 +68,19 @@ export const AlertProvider = ({ children }) => {
     return addAlert(message, ALERT_TYPES.INFO, timeout);
   };
   
+  // Validation alert shorthand (shorter timeout, different styling)
+  const validation = (message, timeout = 3000) => {
+    return addAlert(message, ALERT_TYPES.VALIDATION, timeout);
+  };
+  
   // Clear all alerts
   const clearAlerts = () => {
     setAlerts([]);
+  };
+  
+  // Clear alerts by type
+  const clearAlertsByType = (type) => {
+    setAlerts(prevAlerts => prevAlerts.filter(alert => alert.type !== type));
   };
   
   const value = {
@@ -80,7 +91,9 @@ export const AlertProvider = ({ children }) => {
     error,
     warning,
     info,
-    clearAlerts
+    validation,
+    clearAlerts,
+    clearAlertsByType
   };
   
   return (

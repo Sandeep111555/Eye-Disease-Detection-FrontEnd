@@ -7,7 +7,9 @@ const API_BASE_URL = '';
 
 // Store JWT token in localStorage
 const setToken = (token) => {
-  localStorage.setItem('jwt_token', token);
+  // Make sure the token doesn't have 'Bearer ' prefix before storing
+  const cleanToken = token.replace(/^Bearer\s+/i, '');
+  localStorage.setItem('jwt_token', cleanToken);
   localStorage.setItem('isAuthenticated', 'true');
 };
 
@@ -43,10 +45,27 @@ const login = async (username, password) => {
       credentials: 'include', // Include cookies if your API uses cookie-based authentication
       mode: 'cors' // Explicitly request CORS mode
     });
-
+    
     if (!response.ok) {
-      throw new Error('Invalid username or password');
-    }    // Check content type to determine how to handle the response
+      // Try to get a more specific error message
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Invalid username or password');
+        } else {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Invalid username or password');
+        }
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message) {
+          throw parseError;
+        }
+        throw new Error('Invalid username or password');
+      }
+    }
+    
+    // Check content type to determine how to handle the response
     const contentType = response.headers.get('content-type');
     
     try {
@@ -56,10 +75,10 @@ const login = async (username, password) => {
         // Check if token exists in the response data
         if (data.token) {
           // Store token without Bearer prefix
-          setToken(data.token.replace(/^Bearer\s+/i, ''));
+          setToken(data.token);
         } else if (data.access_token) {
           // Some APIs use access_token instead of token
-          setToken(data.access_token.replace(/^Bearer\s+/i, ''));
+          setToken(data.access_token);
         } else {
           console.error('No token found in JSON response:', data);
           throw new Error('Authentication failed: No token received');
@@ -69,7 +88,8 @@ const login = async (username, password) => {
         // If it's not JSON, assume it's the raw token as text
         const token = await response.text();
         // Remove Bearer prefix if present and store only the token
-        setToken(token.replace(/^Bearer\s+/i, ''));        return { token };
+        setToken(token);
+        return { token };
       }
     } catch (error) {
       console.error('Error processing authentication response:', error);
@@ -148,11 +168,33 @@ const authFetch = async (url, options = {}) => {
 
   try {
     const response = await fetch(url, authOptions);
+    
     if (response.status === 401) {
-      // Token expired or invalid
+      // Try to get the response content to check if it's a password-related error
+      let responseText;
+      try {
+        // First try to get it as JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          responseText = errorData.message || '';
+        } else {
+          responseText = await response.text();
+        }
+      } catch (e) {
+        responseText = await response.text().catch(() => '');
+      }
+      
+      // If it contains "password", it's likely a password validation error
+      if (responseText && responseText.toLowerCase().includes('password')) {
+        return response;
+      }
+      
+      // Otherwise it's a token expiration
       removeToken();
       throw new Error('Session expired. Please login again.');
     }
+    
     return response;
   } catch (error) {
     console.error('API fetch error:', error);

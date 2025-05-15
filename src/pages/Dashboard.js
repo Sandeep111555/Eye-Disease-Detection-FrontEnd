@@ -8,6 +8,7 @@ import AnalysisHistory from '../components/AnalysisHistory';
 import AuthService from '../services/AuthService';
 import EyeAnalysisService from '../services/EyeAnalysisService';
 import { useAlert } from '../contexts/AlertContext';
+import { validateImageFile } from '../utils/ValidationUtils';
 
 const Dashboard = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -26,95 +27,122 @@ const Dashboard = () => {
 
     // Load user's analysis history
     fetchAnalysisHistory();
-  }, [navigate]);
-  // Fetch user's analysis history
+  }, [navigate]);  // Fetch user's analysis history from Java backend with enhanced error handling
   const fetchAnalysisHistory = async () => {
     try {
       setIsLoading(true);
-      const history = await EyeAnalysisService.getUserAnalysisHistory();
-      setAnalysisHistory(history);
+      
+      // Use a timeout promise to prevent infinite loading if the request takes too long
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 15000); // 15 second timeout
+      });
+      
+      // Race the actual request against the timeout
+      const history = await Promise.race([
+        EyeAnalysisService.getUserAnalysisHistory(),
+        timeoutPromise
+      ]);
+      
+      // Process the history data
+      if (Array.isArray(history)) {
+        setAnalysisHistory(history);
+      } else {
+        console.warn('History is not an array:', history);
+        setAnalysisHistory([]);
+      }
     } catch (err) {
       console.error('Error fetching analysis history:', err);
-      // Use mock data if API fails
-      setAnalysisHistory([
-        { 
-          id: '1', 
-          date: '2025-05-10', 
-          diagnosis: 'Normal', 
-          confidence: 92 
-        },
-        { 
-          id: '2', 
-          date: '2025-05-05', 
-          diagnosis: 'Cataract', 
-          confidence: 78 
-        }
-      ]);
+      
+      // Provide specific error messages based on error type
+      if (err.message === 'Request timeout') {
+        showError('Request timed out while loading history. The server may be experiencing high load.');
+      } else if (err.message && err.message.includes('network')) {
+        showError('Network error while loading history. Please check your connection.');
+      } else if (err.message && err.message.includes('unauthorized')) {
+        showError('Your session has expired. Please login again.');
+        // Redirect to login if unauthorized
+        AuthService.removeToken();
+        navigate('/login');
+        return;
+      } else {
+        showError('Failed to load analysis history. Please try again later.');
+      }
+      
+      // Set empty history if API fails
+      setAnalysisHistory([]);
     } finally {
       setIsLoading(false);
     }
-  };const handleFileUpload = (file, preview) => {
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      showError('File size exceeds 5MB limit. Please upload a smaller image.');
-      return;
-    }
+  };
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!validTypes.includes(file.type)) {
-      showError('Please upload an image file (JPEG, PNG)');
-      return;
-    }
-
-    setUploadedImage(file);
-    setImagePreview(preview);
+  // Improved file upload handler with enhanced validation and error feedback
+  const handleFileUpload = (file, preview) => {
+    // Reset the current analysis state before starting a new one
     setAnalysisResult(null);
     
-    // Start analyzing
+    // Validate the uploaded file using ValidationUtils
+    const fileValidation = validateImageFile(file);
+    if (!fileValidation.isValid) {
+      showError(fileValidation.message);
+      return;
+    }
+
+    // All validations passed, proceed with upload
+    setUploadedImage(file);
+    setImagePreview(preview);
+    
+    // Show loading state
     setIsAnalyzing(true);
     info('Analyzing your eye image...', 2000);
 
-    // Use the EyeAnalysisService to analyze the image
+    // Use the EyeAnalysisService to analyze the image with enhanced error handling
     EyeAnalysisService.analyzeEyeImage(file)
       .then(data => {
+        if (!data) {
+          throw new Error('No analysis data received from server');
+        }
+        
+        // Store the analysis result
         setAnalysisResult(data);
         success('Analysis complete!');
+        
         // Refresh history after successful analysis
         fetchAnalysisHistory();
       })
       .catch(err => {
         console.error('Error analyzing image:', err);
-        showError('An error occurred during analysis. Using demo data instead.');
         
-        // If API fails, use mock data for demonstration
-        setAnalysisResult({
-          diagnosis: 'Healthy',
-          confidence: 92,
-          conditions: [
-            { name: 'Healthy Eye', probability: 92 },
-            { name: 'Cataract', probability: 5 },
-            { name: 'Glaucoma', probability: 2 },
-            { name: 'Diabetic Retinopathy', probability: 1 }
-          ],
-          recommendations: 'Your eye appears healthy. Continue with regular eye check-ups.'
-        });
+        // Categorize and display specific error messages based on error type
+        if (err.message && err.message.includes('network')) {
+          showError('Network error. Please check your internet connection and try again.');
+        } else if (err.message && err.message.includes('timeout')) {
+          showError('Analysis timed out. The server might be busy, please try again later.');
+        } else if (err.message && err.message.includes('format')) {
+          showError('The image format cannot be processed. Please try a different image.');
+        } else if (err.message) {
+          // If server provided a specific error message
+          showError(err.message);
+        } else {
+          // Generic fallback message
+          showError('An unexpected error occurred during image analysis. Please try again.');
+        }
+        
+        // Reset the analysis result
+        setAnalysisResult(null);
       })
       .finally(() => {
         setIsAnalyzing(false);
       });
   };
+
   const handleNewScan = () => {
     setUploadedImage(null);
     setImagePreview('');
     setAnalysisResult(null);
   };
-
   const handleViewDetail = (detailData) => {
     setAnalysisResult(detailData);
-    if (detailData.imageUrl) {
-      setImagePreview(detailData.imageUrl);
-    }
+    // Scroll to the top to show results
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

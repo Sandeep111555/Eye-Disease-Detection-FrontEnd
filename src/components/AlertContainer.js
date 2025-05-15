@@ -9,6 +9,8 @@ const getAlertStyles = (type) => {
       return 'bg-red-50 border-red-400 text-red-800';
     case ALERT_TYPES.WARNING:
       return 'bg-yellow-50 border-yellow-400 text-yellow-800';
+    case ALERT_TYPES.VALIDATION:
+      return 'bg-purple-50 border-purple-400 text-purple-800';
     case ALERT_TYPES.INFO:
     default:
       return 'bg-blue-50 border-blue-400 text-blue-800';
@@ -23,6 +25,8 @@ const getIconStyles = (type) => {
       return 'text-red-500';
     case ALERT_TYPES.WARNING:
       return 'text-yellow-500';
+    case ALERT_TYPES.VALIDATION:
+      return 'text-purple-500';
     case ALERT_TYPES.INFO:
     default:
       return 'text-blue-500';
@@ -51,6 +55,12 @@ const getIcon = (type) => {
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
         </svg>
       );
+    case ALERT_TYPES.VALIDATION:
+      return (
+        <svg className={`w-5 h-5 ${iconClass}`} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"></path>
+        </svg>
+      );
     case ALERT_TYPES.INFO:
     default:
       return (
@@ -64,14 +74,13 @@ const getIcon = (type) => {
 const Alert = ({ id, message, type }) => {
   const { removeAlert } = useAlert();
   const alertStyles = getAlertStyles(type);
-  
-  return (
+    return (
     <div className={`flex p-4 mb-4 border-l-4 rounded-md ${alertStyles}`} role="alert">
       <div className="flex-shrink-0 mr-3">
         {getIcon(type)}
       </div>
       <div className="flex-1">
-        <p className="text-sm">{message}</p>
+        <p className="text-sm break-words whitespace-pre-wrap">{message}</p>
       </div>
       <button
         type="button"
@@ -94,9 +103,8 @@ const AlertContainer = () => {
   if (alerts.length === 0) {
     return null;
   }
-  
-  return (
-    <div className="fixed top-4 right-4 z-50 w-full max-w-sm space-y-2">
+    return (
+    <div className="fixed top-4 right-4 z-50 w-full max-w-md space-y-2">
       {alerts.map((alert) => (
         <Alert key={alert.id} {...alert} />
       ))}

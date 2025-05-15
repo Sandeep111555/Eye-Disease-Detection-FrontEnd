@@ -45,7 +45,9 @@ const Register = () => {
       showError('Password must be at least 8 characters long');
       setIsLoading(false);
       return;
-    }    // Call the register API using AuthService
+    }
+    
+    // Call the register API using AuthService
     AuthService.register(formData)
       .then(() => {
         // Registration successful, redirect to login page
@@ -65,8 +67,10 @@ const Register = () => {
         });
       })
       .catch(err => {
-        setError(err.message);
-        showError(err.message);
+        // Save the error in state for in-form display
+        setError(err.message || 'Registration failed. Please try again.');
+        // Also display an alert notification for better visibility
+        showError(err.message || 'Registration failed. Please try again.');
       })
       .finally(() => {
         setIsLoading(false);

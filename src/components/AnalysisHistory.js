@@ -31,29 +31,27 @@ const AnalysisHistory = ({ history = [], onViewDetail }) => {
         </div>
       </Card>
     );
-  }
-  const handleViewDetail = async (analysisId) => {
+  }  const handleViewDetail = async (analysisId) => {
     setIsLoading(true);
     try {
-      // Since we don't have a real API for details, we'll create mock data based on history item
+      // Find the history item from the history array
       const historyItem = history.find(item => item.id === analysisId);
       
       if (!historyItem) {
         throw new Error('Analysis not found');
       }
       
-      // Create mock detail data based on the history item
-      const mockDetailData = {
+      // Create detail data based on the history item
+      const detailData = {
         diagnosis: historyItem.diagnosis,
         confidence: historyItem.confidence,
         conditions: [
-          { name: historyItem.diagnosis, probability: historyItem.confidence },
-          ...getMockConditions(historyItem.diagnosis)
+          { name: historyItem.diagnosis, probability: historyItem.confidence }
         ],
         recommendations: getMockRecommendation(historyItem.diagnosis)
       };
       
-      onViewDetail(mockDetailData);
+      onViewDetail(detailData);
     } catch (err) {
       console.error('Error creating analysis details:', err);
       error('Failed to load analysis details. Please try again.');
@@ -62,20 +60,16 @@ const AnalysisHistory = ({ history = [], onViewDetail }) => {
     }
   };
   
-  // Helper function to generate mock conditions
-  const getMockConditions = (mainDiagnosis) => {
-    const allConditions = ['Cataract', 'Diabetic Retinopathy', 'Glaucoma', 'Normal'];
-    const otherConditions = allConditions.filter(c => 
-      c.toLowerCase() !== mainDiagnosis.toLowerCase()
-    );
-    
-    return otherConditions.map(condition => {
-      const probability = Math.floor(Math.random() * 5) + 1; // Random 1-5%
-      return { name: condition, probability };
-    });
+  // Handle downloading the image
+  const handleDownload = async (fileUrl) => {
+    try {
+      await EyeAnalysisService.downloadEyeImage(fileUrl);
+    } catch (err) {
+      console.error('Error downloading image:', err);
+      error('Failed to download image. Please try again.');
+    }
   };
-  
-  // Helper function to generate mock recommendations
+    // Helper function to generate recommendations based on diagnosis
   const getMockRecommendation = (diagnosis) => {
     switch(diagnosis.toLowerCase()) {
       case 'cataract':
@@ -101,13 +95,12 @@ const AnalysisHistory = ({ history = [], onViewDetail }) => {
   return (
     <Card title="Analysis History">
       <div className="overflow-hidden rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-gray-200">          <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Diagnosis</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" colSpan="2">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -136,14 +129,20 @@ const AnalysisHistory = ({ history = [], onViewDetail }) => {
                     </div>
                     <span className="text-xs">{item.confidence}%</span>
                   </div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-center">
+                </td>                <td className="px-4 py-3 whitespace-nowrap text-center">
                   <Button 
                     onClick={() => handleViewDetail(item.id)}
-                    className="py-1 px-3 text-xs"
+                    className="py-1 px-3 text-xs mr-2"
                     disabled={isLoading}
                   >
                     View Details
+                  </Button>
+                  <Button 
+                    onClick={() => handleDownload(item.fileUrl || item.id)}
+                    className="py-1 px-3 text-xs bg-green-600 hover:bg-green-700"
+                    disabled={isLoading}
+                  >
+                    Download
                   </Button>
                 </td>
               </tr>
